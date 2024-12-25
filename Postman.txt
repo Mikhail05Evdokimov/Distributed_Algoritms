@@ -1,0 +1,2 @@
+http://localhost:8885/write?key=keyr1w2&value=value1w2
+http://localhost:8882/read
