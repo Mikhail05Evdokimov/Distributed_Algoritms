@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify
 import datetime
+import json
 
 PORT = 0
 node = None
@@ -67,13 +68,22 @@ def read_storage():
 @server.route('/append', methods=['POST'])
 def append_entries():
     node.last_heartbeat = datetime.datetime.now()
-    data = request.form.to_dict(flat=True)
-    node.log(str(data))
-    if not node.leader:
+    term = int(request.args.get('term'))
+    commit = int(request.args.get('commit'))
+    leader = int(request.args.get('leader'))
+    entries = request.json
+    node.log(str(entries))
+    if not node.leader or commit > node.commit:
         node.dictionary_lock.acquire()
-        node.dictionary = data.copy()
+        for e_json in entries[node.commit:]:
+            e = e_json
+            node.entries.append(e)
+            k, v = e["key"], e["value"]
+            node.dictionary[k] = v
+            node.commit = node.commit + 1
         node.log("append - " + str(node.dictionary))
         node.dictionary_lock.release()
+        node.follow(term, commit, leader)
     return f"1"
         
 @server.route('/ask_append', methods=['GET'])
@@ -83,3 +93,7 @@ def append_asked():
         node.append_one1(n)
     return f"1"
     
+@server.route('/get_log', methods=['GET'])
+def get_log():
+    response = jsonify(node.entries)
+    return response

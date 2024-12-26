@@ -18,6 +18,7 @@ class Node():
     leader_node = 0
     port = 0
     dictionary = {}
+    entries = []
     dictionary_lock = threading.Lock()
     commit = 0
     term = 0
@@ -99,7 +100,7 @@ class Node():
                 requests.get('http://localhost:' + str(self.leader_node) + '/ask_append?node=' + str(self.port), timeout=RTO)
             except Exception as e:
                 print(e)
-        self.commit = commit
+        #self.commit = commit
         
         
     def heartbeat_leader(self, node):
@@ -120,11 +121,14 @@ class Node():
         self.dictionary_lock.acquire()
         self.commit = self.commit + 1
         self.dictionary[key] = value
+        self.entries.append(json.loads(Entrie(key, value, self.term).toJson()))
+        
         for n in self.nodes:
             try:
-                requests.post('http://localhost:' + str(n) + '/append', timeout=RTO, data = self.dictionary)
+                params = "?term=" + str(self.term) + "&commit=" + str(self.commit) + "&leader=" + str(self.port)
+                requests.post('http://localhost:' + str(n) + '/append' + params, timeout=RTO, json = self.entries)
             except Exception as e:
-                pass
+                print(e)
         self.dictionary_lock.release()
         self.log("New value in storage")
         
@@ -135,17 +139,33 @@ class Node():
         
     def append_one(self, n):
         try:
-            requests.post('http://localhost:' + str(n) + '/append', timeout=RTO, data = self.dictionary)
+            params = "?term=" + str(self.term) + "&commit=" + str(self.commit) + "&leader=" + str(self.port)
+            requests.post('http://localhost:' + str(n) + '/append' + params, timeout=RTO, json = self.entries)
         except Exception as e:
             pass
         
     def append_one1(self, n):
         self.dictionary_lock.acquire()
         try:
-            requests.post('http://localhost:' + str(n) + '/append', timeout=RTO, data = self.dictionary)
+            params = "?term=" + str(self.term) + "&commit=" + str(self.commit) + "&leader=" + str(self.port)
+            requests.post('http://localhost:' + str(n) + '/append' + params, timeout=RTO, json = self.entries)
         except Exception as e:
             pass
         self.dictionary_lock.release()
+        
+class Entrie(json.JSONEncoder):
+    
+    key = None
+    value = None
+    term = None
+    
+    def __init__(self, key, value, term):
+        self.key = key
+        self.value = value
+        self.term = term
+        
+    def toJson(self):
+        return json.dumps(self, default=lambda o: o.__dict__)
         
 node = Node(nodes, PORT)
 server = serv.init(PORT, node)
